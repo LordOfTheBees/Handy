@@ -19,6 +19,7 @@ use specta::Type;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::dictionary::{validate_dictionaries, Dictionary};
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use crate::settings::APPLE_INTELLIGENCE_DEFAULT_MODEL_ID;
 use crate::settings::{
@@ -894,6 +895,30 @@ pub fn change_whats_new_last_seen_version_setting(
 pub fn update_custom_words(app: AppHandle, words: Vec<String>) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.custom_words = words;
+    if settings.dictionaries.is_empty() {
+        settings.dictionaries = crate::dictionary::default_dictionaries();
+    }
+    settings.dictionaries[0].entries = settings
+        .custom_words
+        .iter()
+        .map(|term| crate::dictionary::DictionaryEntry {
+            term: term.clone(),
+            variants: Vec::new(),
+        })
+        .collect();
+    validate_dictionaries(&settings.dictionaries)?;
+    settings.custom_words = crate::dictionary::active_terms(&settings.dictionaries);
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_dictionaries(app: AppHandle, dictionaries: Vec<Dictionary>) -> Result<(), String> {
+    validate_dictionaries(&dictionaries)?;
+    let mut settings = settings::get_settings(&app);
+    settings.dictionaries = dictionaries;
+    settings.custom_words = crate::dictionary::active_terms(&settings.dictionaries);
     settings::write_settings(&app, settings);
     Ok(())
 }

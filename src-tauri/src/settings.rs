@@ -1,3 +1,4 @@
+use crate::dictionary::{default_dictionaries, Dictionary, DictionaryEntry};
 use crate::utils;
 use log::{debug, warn};
 use serde::de::{self, Visitor};
@@ -449,6 +450,8 @@ pub struct AppSettings {
     pub log_level: LogLevel,
     #[serde(default)]
     pub custom_words: Vec<String>,
+    #[serde(default = "default_dictionaries")]
+    pub dictionaries: Vec<Dictionary>,
     #[serde(default)]
     pub model_unload_timeout: ModelUnloadTimeout,
     #[serde(default = "default_word_correction_threshold")]
@@ -996,6 +999,7 @@ pub fn get_default_settings() -> AppSettings {
         debug_mode: false,
         log_level: default_log_level(),
         custom_words: Vec::new(),
+        dictionaries: default_dictionaries(),
         model_unload_timeout: ModelUnloadTimeout::default(),
         word_correction_threshold: default_word_correction_threshold(),
         history_limit: default_history_limit(),
@@ -1166,6 +1170,19 @@ fn apply_settings_migrations(
     settings_value: &serde_json::Value,
 ) -> bool {
     let mut updated = false;
+
+    if settings_value.get("dictionaries").is_none() {
+        settings.dictionaries = default_dictionaries();
+        settings.dictionaries[0].entries = settings
+            .custom_words
+            .iter()
+            .map(|term| DictionaryEntry {
+                term: term.clone(),
+                variants: Vec::new(),
+            })
+            .collect();
+        updated = true;
+    }
 
     // One-time onboarding migration: users with an explicit selected model have
     // already made it through model selection. Users who merely have compatible
@@ -1610,6 +1627,25 @@ mod tests {
     }
 
     #[test]
+    fn legacy_custom_words_migrate_once_to_enabled_general_dictionary() {
+        let mut stored = default_settings_json();
+        stored.as_object_mut().unwrap().remove("dictionaries");
+        stored["custom_words"] = serde_json::json!(["Handy", "Проект Альфа", "handy"]);
+        let mut settings: AppSettings = serde_json::from_value(stored.clone()).unwrap();
+        assert!(apply_settings_migrations(&mut settings, &stored));
+        assert_eq!(settings.dictionaries.len(), 1);
+        assert!(settings.dictionaries[0].enabled);
+        assert_eq!(settings.dictionaries[0].entries[0].term, "Handy");
+        assert_eq!(settings.dictionaries[0].entries[1].term, "Проект Альфа");
+        assert_eq!(settings.dictionaries[0].entries[2].term, "handy");
+
+        let migrated = serde_json::to_value(&settings).unwrap();
+        let mut reloaded: AppSettings = serde_json::from_value(migrated.clone()).unwrap();
+        assert!(!apply_settings_migrations(&mut reloaded, &migrated));
+        assert_eq!(reloaded.dictionaries, settings.dictionaries);
+    }
+
+    #[test]
     fn salvage_of_poisoned_bindings_keeps_other_fields() {
         let mut stored = default_settings_json();
         let map = stored.as_object_mut().unwrap();
@@ -1940,6 +1976,7 @@ mod tests {
             "whats_new_last_seen_version": default_whats_new_last_seen_version(),
             "overlay_style": "live",
             "chinese_script": "as_transcribed",
+            "dictionaries": default_dictionaries(),
             "transcribe_accelerator": "gpu",
             "transcribe_gpu_device": settings.transcribe_gpu_device
         });

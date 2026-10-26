@@ -4,6 +4,7 @@ use crate::audio_toolkit::{
     remove_filler_words, OutputLanguageEvidence,
 };
 use crate::chinese_script::{convert_chinese_script, ChineseVariety};
+use crate::dictionary::{active_terms, apply_variants};
 use crate::engine_supervisor::{
     CancelMark, DeviceInfo, DeviceSelector, EngineError, EngineSupervisor, LoadSpec, LoadedInfo,
     Unloading,
@@ -1172,7 +1173,10 @@ fn run_setup(info: &LoadedInfo, settings: &AppSettings, validated_language: &str
         task: run_plan.task,
         language: run_plan.language,
         target_language: run_plan.target_language,
-        vocabulary: vocabulary_for_model(info.supports_vocabulary, &settings.custom_words),
+        vocabulary: vocabulary_for_model(
+            info.supports_vocabulary,
+            &active_terms(&settings.dictionaries),
+        ),
         ..Default::default()
     };
 
@@ -1503,14 +1507,12 @@ fn post_process_transcription_text(
             _ => raw,
         };
 
-        let corrected = if !settings.custom_words.is_empty() && !custom_words_already_prompted {
-            apply_custom_words(
-                &raw,
-                &settings.custom_words,
-                settings.word_correction_threshold,
-            )
+        let with_variants = apply_variants(&raw, &settings.dictionaries);
+        let terms = active_terms(&settings.dictionaries);
+        let corrected = if !terms.is_empty() && !custom_words_already_prompted {
+            apply_custom_words(&with_variants, &terms, settings.word_correction_threshold)
         } else {
-            raw
+            with_variants
         };
 
         let without_fillers = remove_filler_words(
@@ -2168,7 +2170,15 @@ mod tests {
     fn fuzzy_correction_is_skipped_exactly_when_vocabulary_was_sent() {
         let settings = AppSettings {
             selected_language: "en".to_string(),
-            custom_words: vec!["Handy".to_string()],
+            dictionaries: vec![crate::dictionary::Dictionary {
+                id: "general".to_string(),
+                name: "General".to_string(),
+                enabled: true,
+                entries: vec![crate::dictionary::DictionaryEntry {
+                    term: "Handy".to_string(),
+                    variants: vec!["handi".to_string()],
+                }],
+            }],
             ..Default::default()
         };
         let evidence = OutputLanguageEvidence::UserSelected("en".to_string());
@@ -2193,6 +2203,15 @@ mod tests {
             &supported,
         );
         assert_eq!(corrected, "i use Handy every day");
+
+        let variant = post_process_transcription_text(
+            "i use handi every day".to_string(),
+            &settings,
+            true,
+            &evidence,
+            &supported,
+        );
+        assert_eq!(variant, "i use Handy every day");
     }
 }
 

@@ -16,7 +16,8 @@
     "postProcessing": "Post proceso",
     "history": "Historial",
     "debug": "Depuración",
-    "about": "Acerca de"
+    "about": "Acerca de",
+    "dictionaries": "Dictionaries"
   },
   "onboarding": {
     "customModelDescription": "Sin soporte oficial",
@@ -863,6 +864,48 @@
           "details": "El habla a texto local de Handy está construido sobre transcribe.cpp y ggml. Gracias al increíble trabajo de Georgi Gerganov y colaboradores."
         }
       }
+    },
+    "dictionaries": {
+      "title": "Dictionaries",
+      "description": "Enable several dictionaries at once. Supported models receive their terms as hints; literal variants correct recognized text afterward.",
+      "newName": "New dictionary name",
+      "create": "Create dictionary",
+      "termCount": "{{count}} terms",
+      "toggle": "Enable {{name}}",
+      "empty": "Create a dictionary to get started.",
+      "name": "Dictionary name",
+      "rename": "Rename",
+      "delete": "Delete",
+      "deleteConfirm": "Delete dictionary “{{name}}” and all its terms?",
+      "variantsHelp": "Variants are literal phrases that Handy may recognize instead of the term. Enter one variant per line; they are replaced after transcription.",
+      "conflicts": "Conflicting variants in enabled dictionaries",
+      "conflictsHelp": "The first enabled dictionary in the list takes priority for each repeated variant.",
+      "search": "Search terms and variants",
+      "addTerm": "Add term",
+      "term": "Correct term or phrase",
+      "variants": "Recognized variants, one per line (optional)",
+      "save": "Save",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "remove": "Remove",
+      "noTerms": "No matching terms.",
+      "importTitle": "Paste a list of terms",
+      "importHelp": "One term per line. Add recognized variants with “Term => variant 1 | variant 2”. Numbered and bulleted lists work too. Existing terms receive new variants.",
+      "importPlaceholder": "- Project Alpha => Project Alfa | Project A\n- MacBook Pro\n1. OpenAI => Open AI",
+      "preview": "New terms: {{add}} · New variants: {{variants}} · Duplicates: {{duplicates}} · Invalid: {{invalid}} · Conflicts: {{conflicts}}",
+      "newTerms": "Terms: {{terms}}",
+      "newVariants": "Variants: {{variants}}",
+      "importConflicts": "Variants assigned to another term: {{terms}}",
+      "duplicateList": "Already present: {{terms}}",
+      "invalidList": "Invalid lines: {{terms}}",
+      "import": "Apply {{count}} changes",
+      "saveError": "Could not save dictionaries.",
+      "invalidName": "Enter a unique dictionary name of up to 80 characters.",
+      "invalidEntry": "Check the term and variants for duplicates and the 100-character limit.",
+      "generalName": "General",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "loading": "Loading dictionaries..."
     }
   },
   "footer": {
