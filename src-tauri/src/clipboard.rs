@@ -96,7 +96,16 @@ fn paste_via_clipboard(
 
     // Capture key injection errors so the original clipboard is restored before
     // propagating them to the caller.
+    #[cfg(target_os = "macos")]
+    let mut rdp_focus_bounced = false;
+    #[cfg(not(target_os = "macos"))]
+    let rdp_focus_bounced = false;
     let paste_result = (|| -> Result<(), String> {
+        #[cfg(target_os = "macos")]
+        {
+            rdp_focus_bounced = crate::macos_rdp_focus::bounce_if_windows_app(app_handle)?;
+        }
+
         // Send paste key combo
         #[cfg(target_os = "linux")]
         let key_combo_sent = try_send_key_combo_linux(paste_method)?;
@@ -120,7 +129,15 @@ fn paste_via_clipboard(
         Ok(())
     })();
 
-    finish_clipboard_paste(paste_result, paste_delay_after_ms, || {
+    // RDP may read its forwarded clipboard after the local paste key event.
+    // Give Windows App time to finish the transfer before restoring the user's
+    // previous clipboard. Other applications retain their configured delay.
+    let restore_delay = if rdp_focus_bounced {
+        paste_delay_after_ms.max(1000)
+    } else {
+        paste_delay_after_ms
+    };
+    finish_clipboard_paste(paste_result, restore_delay, || {
         // Restore original clipboard content even when key injection failed.
         // Text takes priority so this path stays identical to the previous behavior;
         // an image is only restored when the clipboard held no text at all, which is
@@ -834,8 +851,15 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
             // On success it fully handles the paste (including auto-submit and
             // clipboard handling) asynchronously; on failure fall through to
             // the legacy path untouched.
+            // Windows App needs a focus change while the transcript is on the
+            // clipboard, so use the focus-aware legacy path for that target.
+            #[cfg(target_os = "windows")]
+            let use_reliable_paste = settings.reliable_paste;
+            #[cfg(target_os = "macos")]
+            let use_reliable_paste = settings.reliable_paste
+                && !crate::macos_rdp_focus::is_windows_app_frontmost(&app_handle).unwrap_or(false);
             #[cfg(any(target_os = "macos", target_os = "windows"))]
-            if settings.reliable_paste {
+            if use_reliable_paste {
                 // Runs entirely on the main thread, as it requires.
                 let (text, app) = (text.clone(), app_handle.clone());
                 let (auto_submit, auto_submit_key, clipboard_handling) = (
@@ -892,6 +916,12 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
     // After pasting, optionally copy to clipboard based on settings
     if settings.clipboard_handling == ClipboardHandling::CopyToClipboard {
         write_text_to_clipboard(&app_handle, &text)?;
+        #[cfg(target_os = "macos")]
+        if paste_method == PasteMethod::None {
+            if let Err(error) = crate::macos_rdp_focus::bounce_if_windows_app(&app_handle) {
+                log::warn!("Could not refresh Windows App clipboard: {error}");
+            }
+        }
     }
 
     Ok(())

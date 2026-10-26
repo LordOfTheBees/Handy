@@ -27,7 +27,7 @@ use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 tauri_panel! {
     panel!(RecordingOverlayPanel {
         config: {
-            can_become_key_window: false,
+            can_become_key_window: true,
             is_floating_panel: true
         }
     })
@@ -467,7 +467,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
             .no_activate(true)
             .corner_radius(0.0)
             .style_mask(StyleMask::empty().borderless().nonactivating_panel())
-            .with_window(|w| w.decorations(false).transparent(true).focusable(false))
+            .with_window(|w| w.decorations(false).transparent(true).focusable(true))
             .collection_behavior(
                 CollectionBehavior::new()
                     .can_join_all_spaces()
@@ -565,6 +565,21 @@ fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
             let pos_calc_elapsed = pos_started.elapsed() - set_pos_elapsed;
 
             let show_started = std::time::Instant::now();
+            #[cfg(target_os = "macos")]
+            {
+                // The panel can become key during the RDP paste. Showing it
+                // for ordinary recording must not take focus from the target.
+                match overlay_window.ns_window() {
+                    Ok(window) => unsafe {
+                        let _: () = objc2::msg_send![
+                            window as *mut objc2::runtime::AnyObject,
+                            orderFrontRegardless
+                        ];
+                    },
+                    Err(error) => log::error!("Failed to show recording panel: {error}"),
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
             let _ = overlay_window.show();
             let show_elapsed = show_started.elapsed();
 

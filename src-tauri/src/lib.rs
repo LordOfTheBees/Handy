@@ -13,6 +13,8 @@ pub mod engine_supervisor;
 mod helpers;
 mod input;
 mod llm_client;
+#[cfg(target_os = "macos")]
+mod macos_rdp_focus;
 mod managers;
 mod memory;
 mod overlay;
